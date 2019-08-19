@@ -1,0 +1,410 @@
+<!DOCTYPE HTML>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <title>90SecChallenge</title>
+    <script type="text/javascript"
+            src = "simpleGame.min.js"></script>
+    <script type="text/javascript">
+        const NUM_BULLETS = 100;
+        const INIT_NUM_BULLETS_LIMIT = 15;
+        const COUNT_DOWN_SEC = 90;
+
+        var currentNumBulletsLimit;
+        var currentBullet = 0;
+        var btnMove;
+        var game;
+        var ship;
+        var expImages = [];
+        var shieldImage;
+        var shield;
+        var shipImage;
+        var gameStatus = 0;
+        var timer = null;
+        var timerText;
+        var startText;
+        var gameOverText;
+        var winnerText;
+        var restartText;
+        var countdownTimer;
+
+        function init(){ 
+            game = new Scene();
+            game.setSize(500, 500);
+            game.setBG('#000');
+
+            shield = new Shield();
+            timer = new AnimTimer();
+
+            startText = new Info(game, '↑ ↓ ← → to Start', 30);
+            startText.setPosition( game.width / 4 , game.height * 2 / 3 );
+
+            gameOverText = new Info(game, 'Game Over',50);
+            gameOverText.hide();
+            gameOverText.setPosition( game.width / 4 , game.height / 3 );  
+ 
+            winnerText = new Info(game, 'Winner',50);
+            winnerText.hide();
+            winnerText.setPosition( game.width / 3 , game.height / 3 );              
+
+            restartText = new Info(game, ' [space] to Restart', 29);
+            restartText.setPosition( game.width / 4 , game.height * 2 / 3 );
+
+            countdownTimer = new CountDownTimer(COUNT_DOWN_SEC);   
+            timerText = new Info(game, null , 18);
+            timerText.setPosition(game.width / 25, game.height / 23);
+            currentNumBulletsLimit = INIT_NUM_BULLETS_LIMIT;
+
+            loadImages();
+            ready();
+            game.start();
+        } // end init
+
+        function ready(){
+            ship = new Ship();
+
+            shield.display();
+            gameStatus = 0;
+            startText.show();
+            gameOverText.hide();
+            restartText.hide();
+            winnerText.hide();
+            countdownTimer.reset();
+            currentNumBulletsLimit = INIT_NUM_BULLETS_LIMIT;
+            // countdown = COUNT_DOWN_SEC * 1000;
+            makeBullets();
+            game.ready();  
+        }
+
+        function game_over(){
+            gameOverText.show();
+            restartText.show();
+        }
+
+        function start(){
+            gameStatus = 1;
+            countdownTimer.start();
+            winnerText.hide();
+            startText.hide();   
+        }
+        
+        function victory(){
+            countdownTimer.stop();
+            ship.victory();
+            restartText.show();
+            winnerText.show();
+        }
+
+        function Shield(){
+            var tShield = new Sprite(game, "star.svg", 30, 30);
+            tShield.hide();
+            this.timeout;
+        
+            tShield.dx = 0;
+            // tShield.hide();            
+            tShield.display = function(modifier){
+                width = getRandomArbitrary(15, game.width - 15);
+                height = getRandomArbitrary(15, game.height - 15);
+                this.setPosition(width, height);  
+                this.show();
+            } 
+
+            tShield.randomShow = function(){
+                _shield = this;    
+                clearTimeout(_shield.timeout);
+                _shield.timeout = setTimeout(function(){_shield.display();}, getRandomArbitrary(20, 30) * 1000);             
+            } 
+                   
+            return tShield;
+        } 
+        
+        function loadImages(){
+            for(var i = 1; i <= 10 ; i++){
+                var image = new Image();
+                var img = 'bubble_explo' + i + '.png';
+                image.src = img;
+                expImages.push(image);
+            }
+            
+            var image = new Image();
+            image.src = 'shuttle2-shield.png';
+            shieldImage = image;
+
+            var image = new Image();
+            image.src = 'shuttle2.png';
+            shipImage = image
+        }
+
+        function Ship(){
+
+            ship = new Sprite(game, "shuttle2.png", 25, 25);
+            ship.changeImageObj(shipImage);
+            ship.dx = 0;
+            ship.setPosition(game.width / 2, game.height / 2);  
+            ship.controllable = true;
+            ship.invulnerable = false;
+            ship.setBoundAction(STOP);
+            ship.checkKeys = function(){
+                if (this.controllable == false) return;
+                if (keysDown[K_LEFT] && this.x > 14 ){
+                    this.changeXby(-5);
+                }
+                if (keysDown[K_RIGHT] && this.x < game.width - 14){
+                    this.changeXby(+5);
+                }
+                if (keysDown[K_UP] && this.y > 14){
+                    this.changeYby(-5);
+                }
+                if (keysDown[K_DOWN] && this.y < game.height - 14){
+                    this.changeYby(+5);
+                }
+            } // end checkKeys
+
+            ship.die = function(){
+                _ship = this;
+                countdownTimer.stop();
+                this.controllable = false; 
+                this.changeImageObj(expImages[0]);
+                var i = 1;
+                var ss = setInterval(function(){   
+                   _ship.changeImageObj(expImages[i]);
+                    if (i++ === 10) {
+                        clearInterval(ss);
+                        _ship.visible = false;
+                        setTimeout(function (){game_over()}, 100);
+                     }
+                }, 100);   
+            }
+
+            ship.victory = function(){
+                this.controllable = false;
+                this.invulnerable = true;
+                this.dy = -30;
+                this.changeImageObj(shieldImage);
+                this.setBoundAction(DIE);
+            }
+
+            ship.actionShield = function(){
+                _ship = this;
+                this.invulnerable = true;   
+                this.changeImageObj(shieldImage);
+                setTimeout(function(){
+                    _ship.changeImageObj(shipImage);
+                    _ship.invulnerable = false;
+                }, 10000);
+            }     
+            return ship;
+        }
+
+        function getRandomArbitrary(min, max) {
+            return Math.floor(Math.random() * (max - min) + min);
+        }
+
+        function CountDownTimer(countdown){
+            this.CountDown = countdown * 1000;
+            this.currentTime = this.CountDown;
+            this.isPaused = true;
+            this.timer = new AnimTimer();
+
+            this.start = function(){
+                this.isPaused = false;
+                this.timer.reset();
+            }
+
+            this.reset = function(){
+                this.isPaused = true;
+                this.currentTime = this.CountDown;
+            }
+
+            this.stop = function(){
+                this.isPaused = true;
+            }
+
+            this.getTimeElapsed = function(){
+                if( !this.isPaused ){ this.currentTime = this.currentTime - this.timer.getTimeElapsed(); }
+                if (this.currentTime < 0) return 0;
+                return this.currentTime;
+            }
+        }
+
+        function Bullet(){
+            var tBullet = new Sprite(game, "redBall.png", 5, 5);
+            tBullet.setBoundAction(DIE);
+            tBullet.dx = 1;
+            tBullet.reflection = false;
+            // tBullet.setSpeed(100);
+            tBullet.hide();
+
+            tBullet.RandomfirePorp = function(){
+
+                var width, height, speed, place, angle;
+                place = getRandomArbitrary(0, 4);
+                angle = getRandomArbitrary(20, 160);
+                if (place == 0 || place == 2){
+                    width = getRandomArbitrary(0, game.width);
+                    if (place == 0) {
+                        height = 0 
+                        place = getRandomArbitrary(0, 3);
+                        angle += 90;
+                    }else{ 
+                        height = game.height;
+                        angle += 270;
+                    }
+                }else{
+                    height = getRandomArbitrary(0, game.height);
+                    if (place == 1){
+                        width = 0;
+                        angle += 0;
+                    }else{
+                        width = game.width
+                        angle += 180;
+                    };
+                }
+                speed = getRandomArbitrary(5, 10);
+                return [width, height, speed, angle];
+            }            
+
+            tBullet.fire = function(modifier){
+
+                [width, height, speed, angle] = this.RandomfirePorp()
+                this.show();
+                this.reflection = false;
+                this.setMoveAngle(angle);
+                this.setSpeed(speed);
+                this.setPosition(width, height);            
+            } 
+                   
+            return tBullet;
+        } 
+        
+        function makeBullets(){
+            bullets = new Array(NUM_BULLETS);
+            for (i = 0; i < NUM_BULLETS; i++){
+                bullets[i] = new Bullet();
+            } // end for
+        }
+
+        function updateBullets(){
+            for (i = 0; i < NUM_BULLETS; i++){
+                bullets[i].update();
+            }
+        }
+
+        function fire(){
+            var bullet_num = 0;
+            for (i = 0; i < NUM_BULLETS; i++){
+                if (bullets[i].visible) bullet_num++;
+            }
+
+            if (bullet_num > currentNumBulletsLimit) return;
+            if (currentBullet >= NUM_BULLETS - 1)  currentBullet = 0;
+            currentBullet++;
+            bullets[currentBullet].fire();
+        }
+        
+
+        function toHHMMSS(sec) {
+            var sec_num = parseInt(sec, 10);
+            // var hours   = Math.floor(sec_num / 3600);
+            var minutes = Math.floor((sec_num - (hours * 3600)) / 60);
+            var seconds = sec_num - (hours * 3600) - (minutes * 60);
+
+            // if (hours   < 10) {hours   = "0"+hours;}
+            if (minutes < 10) {minutes = "0"+minutes;}
+            if (seconds < 10) {seconds = "0"+seconds;}
+            return hours+':'+minutes+':'+seconds;
+        }
+
+        function checkHit(){
+            for (i = 0; i < NUM_BULLETS; i++){
+                if (ship.collidesWith(bullets[i])){
+                    if (ship.invulnerable){
+                        if (bullets[i].reflection) return
+                        bullets[i].reflection = true;
+                        bullets[i].dy *= -1;
+                        bullets[i].dx *= -1;
+                        bullets[i].calcSpeedAngle();
+                        bullets[i].imgAngle = bullets[i].moveAngle;
+                        bullets[i].setSpeed(20);
+                    }else if(ship.controllable == true){
+                        ship.die();
+                    }
+                }
+            }
+
+            if (ship.collidesWith(shield)){
+                shield.visible = false;
+                ship.actionShield();
+                shield.randomShow();
+            }
+        } // end checkHit
+
+        function checkKeys(){
+
+            if (gameStatus == 0){
+                if (keysDown[K_LEFT] 
+                    || keysDown[K_RIGHT] 
+                    || keysDown[K_UP]
+                    || keysDown[K_DOWN]){
+                    start();
+                }
+            }
+
+            if (gameStatus == 1 && restartText.visible == true){
+                if (keysDown[K_SPACE]){
+                    ready();
+                }
+            }
+
+        }
+
+        function updateTimer(){
+            var s = (countdownTimer.getTimeElapsed() / 1000).toFixed(1);
+            timerText.setText(s + ' Seconds');
+            timerText.setColor('white');
+            if (s < 30){
+                timerText.setColor('red');
+                currentNumBulletsLimit = INIT_NUM_BULLETS_LIMIT + 10;
+            }else if(s < 60){
+                currentNumBulletsLimit = INIT_NUM_BULLETS_LIMIT + 5;
+            }
+
+            if(ship.controllable == true && s == 0){
+                victory();
+            }   
+        }
+
+        function update(){
+            game.clear();
+
+            checkKeys();
+            ship.checkKeys();
+            ship.update();
+            shield.update();
+            startText.update();  
+            if (gameStatus==1){
+                checkHit();
+                fire();
+                updateBullets();
+            }
+            updateTimer();
+            timerText.update();
+            gameOverText.update();
+            winnerText.update();
+            restartText.update(); 
+        } // end update
+
+    </script>
+</head>
+<body onload = "init()">
+    
+<div id='timer' ></div>
+</body>
+<style >
+    body {
+        width: 100vh;;
+        margin:0 auto;
+    }
+
+</style>
+</html>
